@@ -1,5 +1,7 @@
 # Color Fundus-to-RNFLT Norm
 
+The code for the paper entitled [**Deep Learning Prediction of Personalized Peripapillary Retinal Nerve Fiber Layer Thickness Norms from Fundus Images in Glaucoma**](https://pubmed.ncbi.nlm.nih.gov/42245038/). If you have any questions, please email harvardophai@gmail.com and harvardairobotics@gmail.com.
+
 This repository predicts a **personalized healthy RNFLT-norm map** from a **color fundus** photograph (OS images are mirrored to an OD-like orientation). The companion [OCT en face](https://github.com/Harvard-AI-and-Robotics-Lab/Fundus2RNFLTNorm) release uses grayscale OCT fundus images.
 
 ## Requirements
@@ -28,9 +30,13 @@ plt.axis("off")
 plt.show()
 ```
 
+Training uses combined `fundusrnflt_*.npz` files with `colorfundus`, `rnflt_artifact_correct`, `pid`, and `glaucoma` (`0` healthy, `1` glaucoma, `2` suspect). The trainer keeps the earliest healthy exam per eye.
+
 ## Pretrained Model
 
-The model weight is available at https://huggingface.co/datasets/harvardairobotics/RNFLTNorm.
+The model weight `checkpoint/checkpoint_best.pt` is self-contained. It includes the training-set mean RNFLT map, so inference does not need a separate file.
+
+The Hugging Face dataset card for these weights is [`huggingface/README.md`](huggingface/README.md), written in the same form as [harvardairobotics/Fundus2RNFLTNorm](https://huggingface.co/datasets/harvardairobotics/Fundus2RNFLTNorm). Upload that file as the dataset `README.md`.
 
 ## Use the Model
 
@@ -51,6 +57,25 @@ A notebook version of this example is in `inference.ipynb`.
 ![Sample predictions](image/sample_predictions.png)
 
 Each row is one eye: input fundus (glaucoma), paired RNFLT (glaucoma), true RNFLT norm (non-glaucoma), predicted RNFLT norm. Thickness maps use a fixed 0–350 µm `turbo` scale.
+
+## Training
+
+Prepare your own `.npz` samples and an index CSV. Point `RNFLTNORM_DATA_ROOT` at the folder that contains `colorfundus_rnflt_match_dataset/` and `metatables/`.
+
+```bash
+python train.py \
+  --data-dir /path/to/colorfundus_rnflt_match_dataset \
+  --index-csv /path/to/metatables/color_fundus_rnflt_combined_npz_index.csv \
+  --output-dir runs/fundus2rnflt_v5_healthy_baseline \
+  --batch-size 8 \
+  --max-epochs 120
+```
+
+Multi-GPU:
+
+```bash
+bash scripts/run_train.sh
+```
 
 ## Acknowledgement and Citation
 

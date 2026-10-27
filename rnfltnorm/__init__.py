@@ -1,4 +1,4 @@
-"""Fundus-to-RNFLT v7: residual polar predictor with high-frequency detail loss."""
+"""Fundus-to-RNFLT v5: residual polar predictor."""
 
 from rnfltnorm.infer import (
     load_fundus_rgb,
@@ -8,7 +8,7 @@ from rnfltnorm.infer import (
     predict_rnflt,
 )
 
-__version__ = "0.7.0"
+__version__ = "0.5.0"
 __all__ = [
     "load_fundus_rgb",
     "load_predictor",

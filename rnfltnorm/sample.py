@@ -13,8 +13,9 @@ import numpy as np
 import torch
 from PIL import Image
 
-from rnfltnorm.config import REPO_ROOT, V7Config
+from rnfltnorm.config import REPO_ROOT, V5Config
 from rnfltnorm.data.preprocess import attach_vessel_channel, eye_from_pid, preprocess_fundus
+from rnfltnorm.infer import mean_from_checkpoint
 from rnfltnorm.models.predictor import ResidualPolarRnfltPredictor
 from rnfltnorm.rnflt_norm import normalize_rnflt_map
 
@@ -33,14 +34,13 @@ DEMO_CASES = [
 ]
 
 DEFAULT_CHECKPOINT = REPO_ROOT / "checkpoint/checkpoint_best.pt"
-DEFAULT_MEAN_MAP = REPO_ROOT / "checkpoint/mean_rnflt.npz"
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
-    p.add_argument("--mean-map", type=Path, default=DEFAULT_MEAN_MAP)
-    p.add_argument("--data-dir", type=Path, default=V7Config.data_dir)
+    p.add_argument("--mean-map", type=Path, default=None)
+    p.add_argument("--data-dir", type=Path, default=V5Config.data_dir)
     p.add_argument("--image-dir", type=Path, default=REPO_ROOT / "image")
     p.add_argument("--device", type=str, default="cuda")
     p.add_argument("--mask-threshold", type=float, default=0.5)
@@ -56,16 +56,14 @@ def load_model(
 ) -> tuple[ResidualPolarRnfltPredictor, dict[str, Any], np.ndarray]:
     checkpoint = torch.load(checkpoint_path, map_location="cpu")
     cfg = checkpoint["config"]
-    if mean_map_path is None or not Path(mean_map_path).is_file():
-        mean_map_path = Path(cfg["output_dir"]) / cfg.get("mean_map_name", "mean_rnflt.npz")
-    mean_np = np.load(mean_map_path)["mean"].astype(np.float32)
+    mean_np = mean_from_checkpoint(checkpoint, mean_map_path)
     in_channels = 4 if bool(cfg.get("use_vessel_channel", True)) else 3
     model = ResidualPolarRnfltPredictor(
         output_size=int(cfg.get("image_size", 200)),
         decoder_channels=int(cfg.get("decoder_channels", 96)),
         pretrained=False,
         in_channels=in_channels,
-        residual_scale=float(cfg.get("residual_scale", 1.0)),
+        residual_scale=float(cfg.get("residual_scale", 0.35)),
         polar_bins=int(cfg.get("polar_bins", 72)),
         polar_inner_radius=float(cfg.get("polar_inner_radius", 0.20)),
         polar_outer_radius=float(cfg.get("polar_outer_radius", 0.46)),

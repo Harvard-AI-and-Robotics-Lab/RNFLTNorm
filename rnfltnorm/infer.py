@@ -1,4 +1,4 @@
-"""Load the v7 checkpoint and predict a healthy RNFLT-norm map from a color fundus."""
+"""Load the v5 checkpoint and predict a healthy RNFLT-norm map from a color fundus."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,32 +14,50 @@ from rnfltnorm.data.preprocess import attach_vessel_channel, preprocess_fundus
 from rnfltnorm.models.predictor import ResidualPolarRnfltPredictor
 
 DEFAULT_CHECKPOINT = REPO_ROOT / "checkpoint/checkpoint_best.pt"
-DEFAULT_MEAN_MAP = REPO_ROOT / "checkpoint/mean_rnflt.npz"
+
+
+def mean_from_checkpoint(
+    payload: dict[str, Any],
+    mean_map: str | Path | None = None,
+) -> np.ndarray:
+    """Return the training-set mean map stored inside the checkpoint."""
+    if "mean_rnflt" in payload:
+        return np.asarray(payload["mean_rnflt"], dtype=np.float32)
+    candidates = []
+    if mean_map is not None:
+        candidates.append(Path(mean_map))
+    cfg = payload.get("config") or {}
+    output_dir = cfg.get("output_dir")
+    if output_dir:
+        candidates.append(Path(output_dir) / cfg.get("mean_map_name", "mean_rnflt.npz"))
+    for path in candidates:
+        if path.is_file():
+            return np.load(path)["mean"].astype(np.float32)
+    raise FileNotFoundError(
+        "checkpoint does not contain mean_rnflt; use a self-contained checkpoint_best.pt"
+    )
 
 
 def load_predictor(
     checkpoint: str | Path = DEFAULT_CHECKPOINT,
-    mean_map: str | Path = DEFAULT_MEAN_MAP,
+    mean_map: str | Path | None = None,
     device: str | torch.device | None = None,
     raw_weights: bool = False,
 ) -> tuple[ResidualPolarRnfltPredictor, dict[str, Any], np.ndarray, torch.device]:
-    """Load EMA (or raw) weights, training config, and the mean RNFLT map."""
+    """Load EMA (or raw) weights and the mean RNFLT map stored in the checkpoint."""
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     device = torch.device(device)
     payload = torch.load(Path(checkpoint), map_location="cpu")
     cfg = payload["config"]
-    mean_path = Path(mean_map)
-    if not mean_path.is_file():
-        mean_path = Path(cfg["output_dir"]) / cfg.get("mean_map_name", "mean_rnflt.npz")
-    mean_np = np.load(mean_path)["mean"].astype(np.float32)
+    mean_np = mean_from_checkpoint(payload, mean_map)
     in_channels = 4 if bool(cfg.get("use_vessel_channel", True)) else 3
     model = ResidualPolarRnfltPredictor(
         output_size=int(cfg.get("image_size", 200)),
         decoder_channels=int(cfg.get("decoder_channels", 96)),
         pretrained=False,
         in_channels=in_channels,
-        residual_scale=float(cfg.get("residual_scale", 1.0)),
+        residual_scale=float(cfg.get("residual_scale", 0.35)),
         polar_bins=int(cfg.get("polar_bins", 72)),
         polar_inner_radius=float(cfg.get("polar_inner_radius", 0.20)),
         polar_outer_radius=float(cfg.get("polar_outer_radius", 0.46)),

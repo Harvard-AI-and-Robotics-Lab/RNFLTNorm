@@ -48,7 +48,7 @@ class ResidualPolarRnfltPredictor(nn.Module):
         decoder_channels: int = 96,
         pretrained: bool = True,
         in_channels: int = 4,
-        residual_scale: float = 1.0,
+        residual_scale: float = 0.35,
         polar_bins: int = 72,
         polar_inner_radius: float = 0.20,
         polar_outer_radius: float = 0.46,

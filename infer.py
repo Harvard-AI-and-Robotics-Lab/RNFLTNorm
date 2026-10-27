@@ -9,7 +9,6 @@ import numpy as np
 
 from rnfltnorm.infer import (
     DEFAULT_CHECKPOINT,
-    DEFAULT_MEAN_MAP,
     load_fundus_rgb,
     load_predictor,
     plot_2dmap,
@@ -22,7 +21,7 @@ def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("--input", required=True, help="color fundus PNG/JPEG or a fundusrnflt .npz")
     p.add_argument("--checkpoint", type=Path, default=DEFAULT_CHECKPOINT)
-    p.add_argument("--mean-map", type=Path, default=DEFAULT_MEAN_MAP)
+    p.add_argument("--mean-map", type=Path, default=None, help="unused when the checkpoint stores mean_rnflt")
     p.add_argument("--output", type=Path, default=None, help="optional .npy path for the prediction")
     p.add_argument("--flip", action="store_true", help="mirror OS to OD-like orientation")
     p.add_argument("--device", type=str, default=None)

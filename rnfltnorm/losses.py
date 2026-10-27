@@ -1,4 +1,4 @@
-"""Residual, polar, and high-frequency detail losses for v7."""
+"""Residual and polar-profile losses for v5."""
 from __future__ import annotations
 
 from typing import Dict
@@ -86,21 +86,6 @@ def peak_weights(
     return valid_mask * (1.0 + float(strength) * (mean_peak + target_peak))
 
 
-def gaussian_kernel(sigma: float, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
-    radius = max(1, int(round(3.0 * float(sigma))))
-    coords = torch.arange(-radius, radius + 1, device=device, dtype=dtype)
-    yy, xx = torch.meshgrid(coords, coords, indexing="ij")
-    kernel = torch.exp(-(xx.square() + yy.square()) / (2.0 * float(sigma) ** 2))
-    kernel = kernel / kernel.sum().clamp_min(1e-8)
-    return kernel.view(1, 1, kernel.shape[0], kernel.shape[1])
-
-
-def highpass(image: torch.Tensor, sigma: float) -> torch.Tensor:
-    kernel = gaussian_kernel(sigma, image.device, torch.float32)
-    blur = F.conv2d(image.float(), kernel, padding=kernel.shape[-1] // 2)
-    return (image.float() - blur).to(dtype=image.dtype)
-
-
 class ResidualLoss(nn.Module):
     def __init__(
         self,
@@ -170,39 +155,6 @@ class ResidualLoss(nn.Module):
             "mask": mask_bce_dice_loss(mask_logits, valid_mask),
         }
         parts["total"] = sum(self.weights[name] * value for name, value in parts.items())
-        return parts
-
-
-class V7DetailLoss(ResidualLoss):
-    def __init__(
-        self,
-        image_size: int,
-        *,
-        detail_weight: float = 2.0,
-        detail_sigma: float = 2.5,
-        **kwargs,
-    ):
-        super().__init__(image_size, **kwargs)
-        self.weights["detail"] = float(detail_weight)
-        self.detail_sigma = float(detail_sigma)
-
-    def forward(
-        self,
-        thickness: torch.Tensor,
-        residual: torch.Tensor,
-        polar: torch.Tensor,
-        mask_logits: torch.Tensor,
-        target: torch.Tensor,
-        valid_mask: torch.Tensor,
-        mean_thickness: torch.Tensor,
-    ) -> Dict[str, torch.Tensor]:
-        parts = super().forward(
-            thickness, residual, polar, mask_logits, target, valid_mask, mean_thickness
-        )
-        pred_detail = highpass(thickness, self.detail_sigma)
-        target_detail = highpass(target, self.detail_sigma)
-        parts["detail"] = masked_mean((pred_detail - target_detail).abs(), valid_mask)
-        parts["total"] = sum(self.weights[name] * parts[name] for name in self.weights)
         return parts
 
 

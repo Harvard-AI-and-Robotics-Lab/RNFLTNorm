@@ -1,4 +1,4 @@
-"""Configuration for residual healthy-baseline v7."""
+"""Configuration for residual healthy-baseline v5."""
 from __future__ import annotations
 
 import os
@@ -11,7 +11,7 @@ DATA_ROOT = Path(os.environ.get("RNFLTNORM_DATA_ROOT", REPO_ROOT.parent))
 
 
 @dataclass
-class V7Config:
+class V5Config:
     data_dir: Path = DATA_ROOT / "colorfundus_rnflt_match_dataset"
     index_csv: Path = DATA_ROOT / "metatables/color_fundus_rnflt_combined_npz_index.csv"
     stats_json: Path = DATA_ROOT / "metatables/rnflt_norm_stats.json"
@@ -41,20 +41,18 @@ class V7Config:
     backbone: str = "resnet34"
     decoder_channels: int = 96
     pretrained: bool = True
-    residual_scale: float = 1.0
+    residual_scale: float = 0.35
     polar_bins: int = 72
     polar_inner_radius: float = 0.20
     polar_outer_radius: float = 0.46
 
-    l1_weight: float = 0.7
+    l1_weight: float = 1.0
     peak_weight: float = 2.0
     residual_l1_weight: float = 1.0
-    detail_weight: float = 2.0
-    detail_sigma: float = 2.5
-    ms_ssim_weight: float = 0.3
-    gradient_weight: float = 0.5
-    polar_weight: float = 0.25
-    polar_consistency_weight: float = 0.1
+    ms_ssim_weight: float = 0.4
+    gradient_weight: float = 0.35
+    polar_weight: float = 0.6
+    polar_consistency_weight: float = 0.2
     mask_weight: float = 0.1
 
     batch_size: int = 8
@@ -68,7 +66,7 @@ class V7Config:
     amp: bool = True
     ema_decay: float = 0.999
 
-    output_dir: Path = REPO_ROOT / "runs/fundus2rnflt_v7_healthy_baseline"
+    output_dir: Path = REPO_ROOT / "runs/fundus2rnflt_v5_healthy_baseline"
     mean_map_name: str = "mean_rnflt.npz"
     log_every_steps: int = 50
     preview_every_epochs: int = 5
@@ -83,7 +81,7 @@ class V7Config:
         return result
 
 
-def load_stats_into_v7_config(cfg: V7Config) -> V7Config:
+def load_stats_into_v5_config(cfg: V5Config) -> V5Config:
     if not cfg.stats_json.is_file():
         return cfg
     import json

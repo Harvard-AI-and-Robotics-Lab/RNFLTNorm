@@ -1,4 +1,4 @@
-"""Train sharp residual healthy-baseline v7 (full-scale residual + detail loss)."""
+"""Train residual healthy-baseline v5 (mean map plus a bounded polar residual)."""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +24,7 @@ from torch.utils.data import DataLoader
 from torch.utils.data.distributed import DistributedSampler
 from tqdm import tqdm
 
-from rnfltnorm.config import V7Config, load_stats_into_v7_config
+from rnfltnorm.config import V5Config, load_stats_into_v5_config
 from rnfltnorm.data.dataset import FundusRnfltDataset, compute_mean_rnflt_map
 from rnfltnorm.data.healthy_baseline import (
     apply_healthy_baseline_filter,
@@ -38,24 +38,24 @@ from rnfltnorm.data.index import (
     make_patient_holdout_split,
     patient_split_table,
 )
-from rnfltnorm.losses import V7DetailLoss, batch_metrics
+from rnfltnorm.losses import ResidualLoss, batch_metrics
 from rnfltnorm.models.predictor import ResidualPolarRnfltPredictor
 
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument("--output-dir", type=Path, default=V7Config.output_dir)
-    p.add_argument("--data-dir", type=Path, default=V7Config.data_dir)
-    p.add_argument("--index-csv", type=Path, default=V7Config.index_csv)
-    p.add_argument("--stats-json", type=Path, default=V7Config.stats_json)
-    p.add_argument("--rnflt-key", type=str, default=V7Config.rnflt_key)
-    p.add_argument("--batch-size", type=int, default=V7Config.batch_size)
-    p.add_argument("--num-workers", type=int, default=V7Config.num_workers)
-    p.add_argument("--max-epochs", type=int, default=V7Config.max_epochs)
-    p.add_argument("--backbone-lr", type=float, default=V7Config.backbone_lr)
-    p.add_argument("--decoder-lr", type=float, default=V7Config.decoder_lr)
-    p.add_argument("--warmup-epochs", type=int, default=V7Config.warmup_epochs)
-    p.add_argument("--device", type=str, default=V7Config.device)
+    p.add_argument("--output-dir", type=Path, default=V5Config.output_dir)
+    p.add_argument("--data-dir", type=Path, default=V5Config.data_dir)
+    p.add_argument("--index-csv", type=Path, default=V5Config.index_csv)
+    p.add_argument("--stats-json", type=Path, default=V5Config.stats_json)
+    p.add_argument("--rnflt-key", type=str, default=V5Config.rnflt_key)
+    p.add_argument("--batch-size", type=int, default=V5Config.batch_size)
+    p.add_argument("--num-workers", type=int, default=V5Config.num_workers)
+    p.add_argument("--max-epochs", type=int, default=V5Config.max_epochs)
+    p.add_argument("--backbone-lr", type=float, default=V5Config.backbone_lr)
+    p.add_argument("--decoder-lr", type=float, default=V5Config.decoder_lr)
+    p.add_argument("--warmup-epochs", type=int, default=V5Config.warmup_epochs)
+    p.add_argument("--device", type=str, default=V5Config.device)
     p.add_argument("--resume", type=Path, default=None)
     p.add_argument("--no-amp", action="store_true")
     p.add_argument("--no-pretrained", action="store_true")
@@ -63,8 +63,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--no-canonicalize-eye", action="store_true")
     p.add_argument("--no-dedupe-rnflt", action="store_true")
     p.add_argument("--no-vessel-channel", action="store_true")
-    p.add_argument("--healthy-label", type=int, default=V7Config.healthy_label)
-    p.add_argument("--glaucoma-cache-csv", type=Path, default=V7Config.glaucoma_cache_csv)
+    p.add_argument("--healthy-label", type=int, default=V5Config.healthy_label)
+    p.add_argument("--glaucoma-cache-csv", type=Path, default=V5Config.glaucoma_cache_csv)
     p.add_argument("--no-reuse-patient-split", action="store_true")
     p.add_argument("--limit-train-batches", type=int, default=None, help=argparse.SUPPRESS)
     p.add_argument("--limit-val-batches", type=int, default=None, help=argparse.SUPPRESS)
@@ -104,7 +104,7 @@ class ModelEMA:
             buffer.copy_(source_buffers[name])
 
 
-def make_dataset(cfg: V7Config, rows, augment: bool) -> FundusRnfltDataset:
+def make_dataset(cfg: V5Config, rows, augment: bool) -> FundusRnfltDataset:
     return FundusRnfltDataset(
         rows,
         cfg.data_dir,
@@ -133,7 +133,7 @@ def reduce_sums(values: Iterable[float], device: torch.device, distributed: bool
     return tensor
 
 
-def load_or_build_mean_map(cfg: V7Config, train_df: pd.DataFrame, rank: int, distributed: bool) -> np.ndarray:
+def load_or_build_mean_map(cfg: V5Config, train_df: pd.DataFrame, rank: int, distributed: bool) -> np.ndarray:
     mean_path = cfg.output_dir / cfg.mean_map_name
     if rank == 0:
         cfg.output_dir.mkdir(parents=True, exist_ok=True)
@@ -159,7 +159,7 @@ def load_or_build_mean_map(cfg: V7Config, train_df: pd.DataFrame, rank: int, dis
 def validate(
     model: torch.nn.Module,
     loader: DataLoader,
-    criterion: V7DetailLoss,
+    criterion: ResidualLoss,
     device: torch.device,
     mean_thickness: torch.Tensor,
     rnflt_scale: float,
@@ -211,27 +211,28 @@ def save_checkpoint(
     ema: ModelEMA,
     optimizer: torch.optim.Optimizer,
     scheduler: torch.optim.lr_scheduler.LambdaLR,
-    cfg: V7Config,
+    cfg: V5Config,
     metrics: Dict[str, float],
     score: float,
+    mean_rnflt: Optional[np.ndarray] = None,
 ) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     try:
-        torch.save(
-            {
-                "version": "v7-detail-residual",
-                "epoch": epoch,
-                "model": unwrap(model).state_dict(),
-                "ema_model": ema.module.state_dict(),
-                "optimizer": optimizer.state_dict(),
-                "scheduler": scheduler.state_dict(),
-                "config": cfg.to_dict(),
-                "metrics": metrics,
-                "score": score,
-            },
-            tmp,
-        )
+        payload = {
+            "version": "v5-residual-polar",
+            "epoch": epoch,
+            "model": unwrap(model).state_dict(),
+            "ema_model": ema.module.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+            "config": cfg.to_dict(),
+            "metrics": metrics,
+            "score": score,
+        }
+        if mean_rnflt is not None:
+            payload["mean_rnflt"] = np.asarray(mean_rnflt, dtype=np.float32)
+        torch.save(payload, tmp)
         tmp.replace(path)
     except Exception as exc:
         if tmp.exists():
@@ -244,7 +245,7 @@ def save_preview(
     model: torch.nn.Module,
     dataset: FundusRnfltDataset,
     output_path: Path,
-    cfg: V7Config,
+    cfg: V5Config,
     mean_thickness: torch.Tensor,
 ) -> None:
     model.eval()
@@ -293,7 +294,7 @@ def save_preview(
 def main() -> None:
     args = parse_args()
     distributed, rank, world_size, local_rank = init_distributed()
-    cfg = load_stats_into_v7_config(V7Config())
+    cfg = load_stats_into_v5_config(V5Config())
     cfg.output_dir = args.output_dir
     cfg.data_dir = args.data_dir
     cfg.index_csv = args.index_csv
@@ -338,10 +339,7 @@ def main() -> None:
         df = dedupe_rnflt_rows(df)
     if cfg.healthy_baseline:
         if rank == 0:
-            print(
-                f"v7 healthy-baseline: residual_scale={cfg.residual_scale}, "
-                f"detail_weight={cfg.detail_weight} sigma={cfg.detail_sigma}"
-            )
+            print(f"v5 healthy-baseline: residual_scale={cfg.residual_scale}")
             load_or_build_glaucoma_cache(df, cfg.data_dir, cfg.glaucoma_cache_csv)
         if distributed:
             dist.barrier()
@@ -443,13 +441,11 @@ def main() -> None:
         lambda epoch: lr_multiplier(epoch, cfg.warmup_epochs, cfg.max_epochs),
     )
     ema = ModelEMA(model, cfg.ema_decay)
-    criterion = V7DetailLoss(
+    criterion = ResidualLoss(
         cfg.image_size,
         l1_weight=cfg.l1_weight,
         peak_weight=cfg.peak_weight,
         residual_l1_weight=cfg.residual_l1_weight,
-        detail_weight=cfg.detail_weight,
-        detail_sigma=cfg.detail_sigma,
         ms_ssim_weight=cfg.ms_ssim_weight,
         gradient_weight=cfg.gradient_weight,
         polar_weight=cfg.polar_weight,
@@ -481,8 +477,8 @@ def main() -> None:
 
     if rank == 0:
         print(
-            f"v7 model={cfg.backbone}-FPN residual_scale={cfg.residual_scale} "
-            f"detail={cfg.detail_weight} polar={cfg.polar_weight} "
+            f"v5 model={cfg.backbone}-FPN residual_scale={cfg.residual_scale} "
+            f"polar={cfg.polar_weight} "
             f"in_channels={in_channels} train_steps={len(train_loader)}"
         )
 
@@ -524,7 +520,7 @@ def main() -> None:
                 progress.set_postfix(
                     loss=f"{loss.item():.4f}",
                     l1=f"{losses['l1'].item():.4f}",
-                    detail=f"{losses['detail'].item():.4f}",
+                    polar=f"{losses['polar'].item():.4f}",
                 )
 
         metrics = validate(
@@ -561,6 +557,7 @@ def main() -> None:
                 cfg,
                 metrics,
                 score,
+                mean_rnflt=mean_np,
             )
             if score < best_score:
                 best_score = score
@@ -574,6 +571,7 @@ def main() -> None:
                     cfg,
                     metrics,
                     score,
+                    mean_rnflt=mean_np,
                 )
                 print(f"new best -> {cfg.output_dir / 'checkpoint_best.pt'}")
             if epoch == 1 or epoch % cfg.preview_every_epochs == 0:

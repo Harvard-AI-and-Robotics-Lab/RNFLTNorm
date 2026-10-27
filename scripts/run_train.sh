@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Train residual healthy-baseline v7 (full-scale residual + detail loss).
+# Train residual healthy-baseline v5.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,7 +13,7 @@ export CUDA_VISIBLE_DEVICES="$GPUS"
 export MASTER_ADDR="${MASTER_ADDR:-127.0.0.1}"
 export MASTER_PORT="${MASTER_PORT:-29507}"
 
-OUT="${OUT:-runs/fundus2rnflt_v7_healthy_baseline}"
+OUT="${OUT:-runs/fundus2rnflt_v5_healthy_baseline}"
 LOG="${LOG:-$OUT/train.log}"
 RESUME="${RESUME:-}"
 BATCH_SIZE="${BATCH_SIZE:-8}"
@@ -24,7 +24,7 @@ if [[ -n "$RESUME" ]]; then
 fi
 
 mkdir -p "$(dirname "$LOG")"
-echo "Launching healthy-baseline v7 DDP nproc=$NPROC GPUs=$CUDA_VISIBLE_DEVICES -> $OUT"
+echo "Launching healthy-baseline v5 DDP nproc=$NPROC GPUs=$CUDA_VISIBLE_DEVICES -> $OUT"
 echo "Log: $LOG"
 
 export PYTHONUNBUFFERED=1
