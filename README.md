@@ -27,9 +27,6 @@ plt.imshow(rgb)
 plt.axis("off")
 plt.show()
 ```
-
-Training uses combined `fundusrnflt_*.npz` files with `colorfundus`, `rnflt_artifact_correct`, `pid`, and `glaucoma` (`0` healthy, `1` glaucoma, `2` suspect). The trainer keeps the earliest healthy exam per eye.
-
 ## Pretrained Model
 
 The model weight is available at https://huggingface.co/datasets/harvardairobotics/RNFLTNorm.
