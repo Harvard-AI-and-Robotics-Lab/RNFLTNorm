@@ -30,9 +30,7 @@ plt.show()
 
 ## Pretrained Model
 
-The model weight `checkpoint_best.pt` and the training-set mean map `mean_rnflt.npz` are in `checkpoint/`.
-
-The Hugging Face dataset card for these weights is [`huggingface/README.md`](huggingface/README.md), written in the same form as [harvardairobotics/Fundus2RNFLTNorm](https://huggingface.co/datasets/harvardairobotics/Fundus2RNFLTNorm). Upload that file as the dataset `README.md`.
+The model weight is available at https://huggingface.co/datasets/harvardairobotics/Fundus2RNFLTNorm.
 
 ## Use the Model
 
