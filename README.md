@@ -56,25 +56,6 @@ A notebook version of this example is in `inference.ipynb`.
 
 Each row is one eye: input fundus (glaucoma), paired RNFLT (glaucoma), true RNFLT norm (non-glaucoma), predicted RNFLT norm. Thickness maps use a fixed 0–350 µm `turbo` scale.
 
-## Training
-
-Prepare your own `.npz` samples and an index CSV. Point `RNFLTNORM_DATA_ROOT` at the folder that contains `colorfundus_rnflt_match_dataset/` and `metatables/`.
-
-```bash
-python train.py \
-  --data-dir /path/to/colorfundus_rnflt_match_dataset \
-  --index-csv /path/to/metatables/color_fundus_rnflt_combined_npz_index.csv \
-  --output-dir runs/fundus2rnflt_v7_healthy_baseline \
-  --batch-size 8 \
-  --max-epochs 120
-```
-
-Multi-GPU:
-
-```bash
-bash scripts/run_train.sh
-```
-
 ## Acknowledgement and Citation
 
 If you find this repository useful for your research, please consider citing our [paper](https://pubmed.ncbi.nlm.nih.gov/42245038/):
