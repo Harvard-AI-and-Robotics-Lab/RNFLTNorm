@@ -30,7 +30,7 @@ plt.show()
 
 ## Pretrained Model
 
-The model weight is available at https://huggingface.co/datasets/harvardairobotics/Fundus2RNFLTNorm.
+The model weight is available at https://huggingface.co/datasets/harvardairobotics/RNFLTNorm.
 
 ## Use the Model
 
