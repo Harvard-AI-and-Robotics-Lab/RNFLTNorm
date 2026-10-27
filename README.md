@@ -1,7 +1,5 @@
 # Color Fundus-to-RNFLT Norm
 
-The code for the paper entitled [**Deep Learning Prediction of Personalized Peripapillary Retinal Nerve Fiber Layer Thickness Norms from Fundus Images in Glaucoma**](https://pubmed.ncbi.nlm.nih.gov/42245038/). If you have any questions, please email harvardophai@gmail.com and harvardairobotics@gmail.com.
-
 This repository predicts a **personalized healthy RNFLT-norm map** from a **color fundus** photograph (OS images are mirrored to an OD-like orientation). The companion [OCT en face](https://github.com/Harvard-AI-and-Robotics-Lab/Fundus2RNFLTNorm) release uses grayscale OCT fundus images.
 
 ## Requirements
@@ -29,8 +27,6 @@ plt.imshow(rgb)
 plt.axis("off")
 plt.show()
 ```
-
-Training uses combined `fundusrnflt_*.npz` files with `colorfundus`, `rnflt_artifact_correct`, `pid`, and `glaucoma` (`0` healthy, `1` glaucoma, `2` suspect). The trainer keeps the earliest healthy exam per eye.
 
 ## Pretrained Model
 
