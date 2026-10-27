@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Entry point for residual healthy-baseline v7 training."""
+"""Entry point for residual healthy-baseline v5 training."""
 from rnfltnorm.train import main
 
 
